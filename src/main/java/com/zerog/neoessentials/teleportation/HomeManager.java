@@ -386,7 +386,10 @@ public class HomeManager {
 
         // Perform teleportation
         int delayTicks = teleportDelay * 20; // Convert seconds to ticks
-        TeleportUtil.teleportPlayer(player, home, delayTicks, true).thenAccept(result -> {
+        if (!requireSafeLocations) {
+            LOGGER.info("Home teleport safety checks are disabled; skipping safe location validation.");
+        }
+        TeleportUtil.teleportPlayer(player, home, delayTicks, requireSafeLocations).thenAccept(result -> {
             if (result.isSuccess()) {
                 player.sendSystemMessage(MessageUtil.success("commands.neoessentials.teleport.home.success", homeName));
                 // Log home teleport if enabled in config
