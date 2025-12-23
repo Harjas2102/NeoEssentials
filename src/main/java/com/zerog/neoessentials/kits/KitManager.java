@@ -283,7 +283,7 @@ public class KitManager {
      * Deletes a kit.
      */
     public boolean deleteKit(String name) {
-        String normalizedName = name.toLowerCase();
+        String normalizedName = normalizeKitName(name);
         if (kits.remove(normalizedName) != null) {
             saveKits();
             
@@ -305,7 +305,7 @@ public class KitManager {
      * Gets a kit by name.
      */
     public Kit getKit(String name) {
-        return kits.get(name.toLowerCase());
+        return kits.get(normalizeKitName(name));
     }
     
     /**
@@ -344,16 +344,18 @@ public class KitManager {
      * Checks if a player can use a kit right now.
      */
     public KitUsageResult canUseKit(ServerPlayer player, String kitName) {
+        String normalizedKitName = normalizeKitName(kitName);
         // If allowKitOverride is enabled and player has override permission, skip all restrictions
         if (com.zerog.neoessentials.config.ConfigManager.getInstance().isAllowKitOverrideEnabled() &&
             com.zerog.neoessentials.api.permissions.PermissionAPI.hasPermission(player.getUUID(), "neoessentials.kits.override")) {
             return new KitUsageResult(true, "Kit can be used (override)");
         }
         
-        Kit kit = getKit(kitName);
+        Kit kit = getKit(normalizedKitName);
         if (kit == null) {
             return new KitUsageResult(false, "Kit not found");
         }
+        String canonicalKitName = kit.getName();
         
         if (!kit.isEnabled()) {
             return new KitUsageResult(false, "Kit is currently disabled");
@@ -367,8 +369,8 @@ public class KitManager {
         }
         
         // Check cooldown (unless player has exemption)
-        if (!hasCooldownExemption(player, kitName)) {
-            long remainingCooldown = getRemainingCooldown(player.getUUID(), kitName);
+        if (!hasCooldownExemption(player, canonicalKitName)) {
+            long remainingCooldown = getRemainingCooldown(player.getUUID(), canonicalKitName);
             if (remainingCooldown > 0) {
                 return new KitUsageResult(false, "Kit is still on cooldown for " + formatTime(remainingCooldown));
             }
@@ -376,7 +378,7 @@ public class KitManager {
 
         // Check usage limit
         if (kit.getMaxUses() > 0) {
-            int usageCount = getUsageCount(player.getUUID(), kitName);
+            int usageCount = getUsageCount(player.getUUID(), canonicalKitName);
             if (usageCount >= kit.getMaxUses()) {
                 return new KitUsageResult(false, "You have reached the maximum uses for this kit");
             }
@@ -384,7 +386,7 @@ public class KitManager {
 
         // Enforce maxKitsPerPlayer (active cooldowns)
         int maxKits = com.zerog.neoessentials.config.ConfigManager.getInstance().getMaxKitsPerPlayer();
-        if (maxKits > 0 && !hasCooldownExemption(player, kitName)) {
+        if (maxKits > 0 && !hasCooldownExemption(player, canonicalKitName)) {
             // Count number of kits with active cooldowns for this player
             int activeCooldowns = 0;
             Map<String, Long> cooldownMap = playerCooldowns.get(player.getUUID());
@@ -398,8 +400,8 @@ public class KitManager {
             }
             // If this kit is not already on cooldown, using it would add a new cooldown
             boolean alreadyOnCooldown = false;
-            if (cooldownMap != null && cooldownMap.containsKey(kitName.toLowerCase())) {
-                long cooldownEnd = cooldownMap.get(kitName.toLowerCase());
+            if (cooldownMap != null && cooldownMap.containsKey(canonicalKitName)) {
+                long cooldownEnd = cooldownMap.get(canonicalKitName);
                 if (cooldownEnd > System.currentTimeMillis()) {
                     alreadyOnCooldown = true;
                 }
@@ -416,6 +418,7 @@ public class KitManager {
      * Gives a kit to a player.
      */
     public KitUsageResult giveKit(ServerPlayer player, String kitName) {
+        String normalizedKitName = normalizeKitName(kitName);
         KitUsageResult canUse = canUseKit(player, kitName);
         if (!canUse.isAllowed()) {
             return canUse;
@@ -424,7 +427,7 @@ public class KitManager {
         if (!(com.zerog.neoessentials.config.ConfigManager.getInstance().isAllowKitOverrideEnabled() &&
               com.zerog.neoessentials.api.permissions.PermissionAPI.hasPermission(player.getUUID(), "neoessentials.kits.override"))) {
             int maxKits = com.zerog.neoessentials.config.ConfigManager.getInstance().getMaxKitsPerPlayer();
-            if (maxKits > 0 && !hasCooldownExemption(player, kitName)) {
+            if (maxKits > 0 && !hasCooldownExemption(player, normalizedKitName)) {
                 Map<String, Long> cooldownMap = playerCooldowns.get(player.getUUID());
                 int activeCooldowns = 0;
                 long now = System.currentTimeMillis();
@@ -437,8 +440,8 @@ public class KitManager {
                 }
                 // If this kit is not already on cooldown, using it would add a new cooldown
                 boolean alreadyOnCooldown = false;
-                if (cooldownMap != null && cooldownMap.containsKey(kitName.toLowerCase())) {
-                    long cooldownEnd = cooldownMap.get(kitName.toLowerCase());
+                if (cooldownMap != null && cooldownMap.containsKey(normalizedKitName)) {
+                    long cooldownEnd = cooldownMap.get(normalizedKitName);
                     if (cooldownEnd > now) {
                         alreadyOnCooldown = true;
                     }
@@ -449,10 +452,11 @@ public class KitManager {
             }
         }
 
-        Kit kit = getKit(kitName);
+        Kit kit = getKit(normalizedKitName);
         if (kit == null) {
             return new KitUsageResult(false, "Kit not found");
         }
+        String canonicalKitName = kit.getName();
 
         try {
             Inventory inventory = player.getInventory();
@@ -534,10 +538,10 @@ public class KitManager {
 
             // Update cooldown and usage tracking
             // Only set cooldown if player doesn't have exemption
-            if (!hasCooldownExemption(player, kitName)) {
-                setCooldown(player.getUUID(), kitName, System.currentTimeMillis() + kit.getCooldownMillis());
+            if (!hasCooldownExemption(player, canonicalKitName)) {
+                setCooldown(player.getUUID(), canonicalKitName, System.currentTimeMillis() + kit.getCooldownMillis());
             }
-            incrementUsage(player.getUUID(), kitName);
+            incrementUsage(player.getUUID(), canonicalKitName);
 
             savePlayerData();
 
@@ -550,13 +554,13 @@ public class KitManager {
             }
 
             if (com.zerog.neoessentials.config.ConfigManager.isLogKitUsageEnabled()) {
-                LOGGER.info("Player {} used kit {}", player.getName().getString(), kitName);
+                LOGGER.info("Player {} used kit {}", player.getName().getString(), canonicalKitName);
             }
             return new KitUsageResult(true, result);
 
         } catch (Exception e) {
             LOGGER.error("Failed to give kit '{}' to player {}: {}", 
-                        kitName, player.getName().getString(), e.getMessage(), e);
+                        canonicalKitName, player.getName().getString(), e.getMessage(), e);
             return new KitUsageResult(false, "An error occurred while giving the kit");
         }
     }
@@ -564,10 +568,11 @@ public class KitManager {
     // Cooldown and Usage Tracking
     
     private long getRemainingCooldown(UUID playerId, String kitName) {
+        String normalizedKitName = normalizeKitName(kitName);
         Map<String, Long> playerCooldownMap = playerCooldowns.get(playerId);
         if (playerCooldownMap == null) return 0;
         
-        Long cooldownEnd = playerCooldownMap.get(kitName.toLowerCase());
+        Long cooldownEnd = playerCooldownMap.get(normalizedKitName);
         if (cooldownEnd == null) return 0;
         
         long remaining = cooldownEnd - System.currentTimeMillis();
@@ -575,19 +580,22 @@ public class KitManager {
     }
     
     private void setCooldown(UUID playerId, String kitName, long cooldownEnd) {
+        String normalizedKitName = normalizeKitName(kitName);
         playerCooldowns.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>())
-                      .put(kitName.toLowerCase(), cooldownEnd);
+                      .put(normalizedKitName, cooldownEnd);
     }
     
     public int getUsageCount(UUID playerId, String kitName) {
+        String normalizedKitName = normalizeKitName(kitName);
         Map<String, Integer> playerUsageMap = playerUsages.get(playerId);
         if (playerUsageMap == null) return 0;
-        return playerUsageMap.getOrDefault(kitName.toLowerCase(), 0);
+        return playerUsageMap.getOrDefault(normalizedKitName, 0);
     }
     
     private void incrementUsage(UUID playerId, String kitName) {
+        String normalizedKitName = normalizeKitName(kitName);
         playerUsages.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>())
-                   .merge(kitName.toLowerCase(), 1, Integer::sum);
+                   .merge(normalizedKitName, 1, Integer::sum);
     }
     
     /**
@@ -595,6 +603,7 @@ public class KitManager {
      * Checks both global cooldown exemption and per-kit exemption.
      */
     private boolean hasCooldownExemption(ServerPlayer player, String kitName) {
+        String normalizedKitName = normalizeKitName(kitName);
         UUID playerId = player.getUUID();
         // Check override permission if allowKitOverride is enabled
         if (com.zerog.neoessentials.config.ConfigManager.getInstance().isAllowKitOverrideEnabled()) {
@@ -608,12 +617,19 @@ public class KitManager {
         }
         
         // Check per-kit cooldown exemption
-        String kitNocooldownPermission = "neoessentials.kits." + kitName.toLowerCase() + ".nocooldown";
+        String kitNocooldownPermission = "neoessentials.kits." + normalizedKitName + ".nocooldown";
         if (com.zerog.neoessentials.api.permissions.PermissionAPI.hasPermission(playerId, kitNocooldownPermission)) {
             return true;
         }
         
         return false;
+    }
+
+    private String normalizeKitName(String kitName) {
+        if (kitName == null) {
+            return "";
+        }
+        return kitName.toLowerCase().replaceAll("[^a-z0-9_]", "");
     }
     
     private String formatTime(long millis) {
