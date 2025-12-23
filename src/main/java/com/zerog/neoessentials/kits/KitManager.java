@@ -70,49 +70,75 @@ public class KitManager {
     /**
      * Loads all kits from the configuration.
      */
-    private void loadKits() {
-        try {
-            File kitsFile = com.zerog.neoessentials.util.ResourceUtil.getConfigFile("kits.json");
-            
-            if (kitsFile.exists()) {
-                try (Reader reader = new FileReader(kitsFile)) {
-                    JsonObject config = GSON.fromJson(reader, JsonObject.class);
-                    
-                    if (config != null && config.has("kits")) {
-                        JsonArray kitsArray = config.getAsJsonArray("kits");
-                        int loadedCount = 0;
-                        
-                        for (JsonElement element : kitsArray) {
-                            try {
-                                Kit kit = Kit.fromJson(element.getAsJsonObject());
-                                kits.put(kit.getName(), kit);
-                                
-                                // Register kit permission with the permission registry for tab completion
-                                try {
-                                    com.zerog.neoessentials.api.permissions.PermissionRegistry.getInstance()
-                                        .registerKitPermission(kit.getName());
-                                } catch (Exception e) {
-                                    LOGGER.warn("Failed to register kit permission for '{}': {}", kit.getName(), e.getMessage());
-                                }
-                                
-                                loadedCount++;
-                            } catch (Exception e) {
-                                LOGGER.warn("Failed to load kit from config: {}", e.getMessage());
-                            }
-                        }
-                        
-                        LOGGER.info("Loaded {} kits from configuration", loadedCount);
-                    }
-                }
-            } else {
-                LOGGER.info("No kits configuration found, starting with empty kit list");
-                // Create default config
-                saveKits();
-            }
-        } catch (Exception e) {
-            LOGGER.error("Failed to load kits from configuration: {}", e.getMessage(), e);
+private void loadKits() {
+    try {
+        File kitsFile = com.zerog.neoessentials.util.ResourceUtil.getConfigFile("kits.json");
+
+        if (!kitsFile.exists()) {
+            LOGGER.info("No kits configuration found, starting with empty kit list");
+            saveKits();
+            return;
         }
+
+        try (Reader reader = new FileReader(kitsFile)) {
+            JsonElement root = GSON.fromJson(reader, JsonElement.class);
+            if (root == null || root.isJsonNull()) {
+                LOGGER.warn("kits.json is empty or invalid JSON; no kits loaded");
+                return;
+            }
+
+            JsonArray kitsArray = null;
+
+            // Support both formats:
+            // 1) { "kits": [ ... ] }
+            if (root.isJsonObject()) {
+                JsonObject obj = root.getAsJsonObject();
+                if (obj.has("kits") && obj.get("kits").isJsonArray()) {
+                    kitsArray = obj.getAsJsonArray("kits");
+                } else {
+                    LOGGER.warn("kits.json is an object but missing a 'kits' array; no kits loaded");
+                    return;
+                }
+            }
+            // 2) [ ... ]
+            else if (root.isJsonArray()) {
+                kitsArray = root.getAsJsonArray();
+            } else {
+                LOGGER.warn("kits.json has unexpected JSON type {}; no kits loaded", root.getClass().getSimpleName());
+                return;
+            }
+
+            int loadedCount = 0;
+
+            for (JsonElement element : kitsArray) {
+                try {
+                    Kit kit = Kit.fromJson(element.getAsJsonObject());
+
+                    // Normalize key to match getKit()/deleteKit()
+                    String normalizedName = Kit.normalizeKitName(kit.getName());
+                    kits.put(normalizedName, kit);
+
+                    // Register kit permission with the permission registry for tab completion
+                    try {
+                        com.zerog.neoessentials.api.permissions.PermissionRegistry.getInstance()
+                            .registerKitPermission(normalizedName);
+                    } catch (Exception e) {
+                        LOGGER.warn("Failed to register kit permission for '{}': {}", normalizedName, e.getMessage());
+                    }
+
+                    loadedCount++;
+                } catch (Exception e) {
+                    LOGGER.warn("Failed to load kit from config: {}", e.getMessage());
+                }
+            }
+
+            LOGGER.info("Loaded {} kits from configuration", loadedCount);
+        }
+    } catch (Exception e) {
+        LOGGER.error("Failed to load kits from configuration: {}", e.getMessage(), e);
     }
+}
+
     
     /**
      * Saves all kits to the configuration.
