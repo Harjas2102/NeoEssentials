@@ -48,7 +48,7 @@ public class Kit {
      */
     public Kit(String name, String displayName, String description, List<ItemStack> items, 
                long cooldownMillis, String permission, int maxUses, boolean enabled) {
-        this.name = name.toLowerCase().replaceAll("[^a-z0-9_]", ""); // Sanitize name
+        this.name = normalizeKitName(name);
         this.displayName = displayName != null ? displayName : name;
         this.description = description != null ? description : "";
         this.items = new ArrayList<>(items != null ? items : Collections.emptyList());
@@ -69,6 +69,16 @@ public class Kit {
     public int getMaxUses() { return maxUses; }
     public boolean isEnabled() { return enabled; }
     public Map<String, Object> getMetadata() { return new HashMap<>(metadata); }
+
+    /**
+     * Normalizes a kit name to match constructor sanitization rules.
+     */
+    public static String normalizeKitName(String kitName) {
+        if (kitName == null) {
+            return "";
+        }
+        return kitName.toLowerCase().replaceAll("[^a-z0-9_]", "");
+    }
     
     /**
      * Gets cooldown duration in a human-readable format.

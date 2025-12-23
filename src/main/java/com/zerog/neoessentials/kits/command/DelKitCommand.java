@@ -64,7 +64,10 @@ public class DelKitCommand {
         try {
             KitManager kitManager = KitManager.getInstance();
             Set<String> kitNames = kitManager.getAllKitNames();
-            return SharedSuggestionProvider.suggest(kitNames, builder);
+            Set<String> normalizedKitNames = kitNames.stream()
+                .map(Kit::normalizeKitName)
+                .collect(java.util.stream.Collectors.toSet());
+            return SharedSuggestionProvider.suggest(normalizedKitNames, builder);
         } catch (Exception e) {
             LOGGER.warn("Error suggesting kits for delkit command: {}", e.getMessage());
             return builder.buildFuture();
@@ -74,21 +77,22 @@ public class DelKitCommand {
     private static int deleteKit(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
         String kitName = StringArgumentType.getString(context, "kitname");
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         
         try {
             KitManager kitManager = KitManager.getInstance();
-            Kit kit = kitManager.getKit(kitName);
+            Kit kit = kitManager.getKit(normalizedKitName);
             
             if (kit == null) {
-                source.sendFailure(MessageUtil.error("commands.neoessentials.delkit.not_found", kitName));
+                source.sendFailure(MessageUtil.error("commands.neoessentials.delkit.not_found", normalizedKitName));
                 return 0;
             }
             
             // Show kit info and ask for confirmation
             source.sendSuccess(() -> MessageUtil.warning("commands.neoessentials.delkit.confirm_prompt", 
-                kitName, kit.getDisplayName(), kit.getItems().size()), false);
+                normalizedKitName, kit.getDisplayName(), kit.getItems().size()), false);
             source.sendSuccess(() -> MessageUtil.info("commands.neoessentials.delkit.confirm_instructions", 
-                kitName), false);
+                normalizedKitName), false);
             
             return 1;
             
@@ -102,6 +106,7 @@ public class DelKitCommand {
     private static int confirmDeleteKit(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
         String kitName = StringArgumentType.getString(context, "kitname");
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         
         try {
             // Check and deduct delkit command cost if economy is enabled
@@ -122,25 +127,25 @@ public class DelKitCommand {
                 }
             }
             KitManager kitManager = KitManager.getInstance();
-            Kit kit = kitManager.getKit(kitName);
+            Kit kit = kitManager.getKit(normalizedKitName);
             
             if (kit == null) {
-                source.sendFailure(MessageUtil.error("commands.neoessentials.delkit.not_found", kitName));
+                source.sendFailure(MessageUtil.error("commands.neoessentials.delkit.not_found", normalizedKitName));
                 return 0;
             }
             
-            boolean success = kitManager.deleteKit(kitName);
+            boolean success = kitManager.deleteKit(normalizedKitName);
             
             if (success) {
                 source.sendSuccess(() -> MessageUtil.success("commands.neoessentials.delkit.deleted", 
-                    kitName), false);
+                    normalizedKitName), false);
                 
                 // Log the deletion
                 String playerName = "Console";
                 if (source.getEntity() instanceof ServerPlayer player) {
                     playerName = player.getName().getString();
                 }
-                LOGGER.info("Kit '{}' deleted by {}", kitName, playerName);
+                LOGGER.info("Kit '{}' deleted by {}", normalizedKitName, playerName);
                 
                 return 1;
             } else {

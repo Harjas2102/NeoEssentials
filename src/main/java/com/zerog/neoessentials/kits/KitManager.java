@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -260,6 +261,9 @@ public class KitManager {
                            List<ItemStack> items, long cooldownMillis, String permission) {
         try {
             Kit kit = new Kit(name, displayName, description, items, cooldownMillis, permission, -1, true);
+            if (!Objects.equals(name, kit.getName())) {
+                LOGGER.debug("Normalized kit name from '{}' to '{}' during creation", name, kit.getName());
+            }
             kits.put(kit.getName(), kit);
             saveKits();
             
@@ -283,7 +287,7 @@ public class KitManager {
      * Deletes a kit.
      */
     public boolean deleteKit(String name) {
-        String normalizedName = normalizeKitName(name);
+        String normalizedName = Kit.normalizeKitName(name);
         if (kits.remove(normalizedName) != null) {
             saveKits();
             
@@ -305,7 +309,11 @@ public class KitManager {
      * Gets a kit by name.
      */
     public Kit getKit(String name) {
-        return kits.get(normalizeKitName(name));
+        String normalizedName = Kit.normalizeKitName(name);
+        if (!Objects.equals(name, normalizedName)) {
+            LOGGER.debug("Normalized kit lookup from '{}' to '{}'", name, normalizedName);
+        }
+        return kits.get(normalizedName);
     }
     
     /**
@@ -344,7 +352,7 @@ public class KitManager {
      * Checks if a player can use a kit right now.
      */
     public KitUsageResult canUseKit(ServerPlayer player, String kitName) {
-        String normalizedKitName = normalizeKitName(kitName);
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         // If allowKitOverride is enabled and player has override permission, skip all restrictions
         if (com.zerog.neoessentials.config.ConfigManager.getInstance().isAllowKitOverrideEnabled() &&
             com.zerog.neoessentials.api.permissions.PermissionAPI.hasPermission(player.getUUID(), "neoessentials.kits.override")) {
@@ -418,7 +426,7 @@ public class KitManager {
      * Gives a kit to a player.
      */
     public KitUsageResult giveKit(ServerPlayer player, String kitName) {
-        String normalizedKitName = normalizeKitName(kitName);
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         KitUsageResult canUse = canUseKit(player, kitName);
         if (!canUse.isAllowed()) {
             return canUse;
@@ -568,7 +576,7 @@ public class KitManager {
     // Cooldown and Usage Tracking
     
     private long getRemainingCooldown(UUID playerId, String kitName) {
-        String normalizedKitName = normalizeKitName(kitName);
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         Map<String, Long> playerCooldownMap = playerCooldowns.get(playerId);
         if (playerCooldownMap == null) return 0;
         
@@ -580,20 +588,20 @@ public class KitManager {
     }
     
     private void setCooldown(UUID playerId, String kitName, long cooldownEnd) {
-        String normalizedKitName = normalizeKitName(kitName);
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         playerCooldowns.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>())
                       .put(normalizedKitName, cooldownEnd);
     }
     
     public int getUsageCount(UUID playerId, String kitName) {
-        String normalizedKitName = normalizeKitName(kitName);
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         Map<String, Integer> playerUsageMap = playerUsages.get(playerId);
         if (playerUsageMap == null) return 0;
         return playerUsageMap.getOrDefault(normalizedKitName, 0);
     }
     
     private void incrementUsage(UUID playerId, String kitName) {
-        String normalizedKitName = normalizeKitName(kitName);
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         playerUsages.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>())
                    .merge(normalizedKitName, 1, Integer::sum);
     }
@@ -603,7 +611,7 @@ public class KitManager {
      * Checks both global cooldown exemption and per-kit exemption.
      */
     private boolean hasCooldownExemption(ServerPlayer player, String kitName) {
-        String normalizedKitName = normalizeKitName(kitName);
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         UUID playerId = player.getUUID();
         // Check override permission if allowKitOverride is enabled
         if (com.zerog.neoessentials.config.ConfigManager.getInstance().isAllowKitOverrideEnabled()) {
@@ -625,13 +633,6 @@ public class KitManager {
         return false;
     }
 
-    private String normalizeKitName(String kitName) {
-        if (kitName == null) {
-            return "";
-        }
-        return kitName.toLowerCase().replaceAll("[^a-z0-9_]", "");
-    }
-    
     private String formatTime(long millis) {
         long seconds = millis / 1000;
         long minutes = seconds / 60;

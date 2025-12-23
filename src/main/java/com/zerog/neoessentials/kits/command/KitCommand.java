@@ -54,7 +54,7 @@ public class KitCommand {
         try {
             KitManager kitManager = KitManager.getInstance();
             for (Kit kit : kitManager.getAvailableKits(player)) {
-                builder.suggest(kit.getName());
+                builder.suggest(Kit.normalizeKitName(kit.getName()));
             }
         } catch (Exception e) {
             LOGGER.error("Error suggesting kits: {}", e.getMessage(), e);
@@ -146,6 +146,7 @@ public class KitCommand {
         CommandSourceStack source = context.getSource();
         ServerPlayer player = (ServerPlayer) source.getEntity();
         String kitName = StringArgumentType.getString(context, "kitname");
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         
         try {
             // Check and deduct kit command cost if economy is enabled
@@ -164,26 +165,26 @@ public class KitCommand {
             }
 
             KitManager kitManager = KitManager.getInstance();
-            Kit kit = kitManager.getKit(kitName);
+            Kit kit = kitManager.getKit(normalizedKitName);
             
             if (kit == null) {
-                source.sendFailure(MessageUtil.error("commands.neoessentials.listkits.not_found", kitName));
+                source.sendFailure(MessageUtil.error("commands.neoessentials.listkits.not_found", normalizedKitName));
                 return 0;
             }
             
             // Check if player can use this kit
-            var result = kitManager.canUseKit(player, kitName);
+            var result = kitManager.canUseKit(player, normalizedKitName);
             if (!result.isAllowed()) {
                 source.sendFailure(MessageUtil.error("commands.neoessentials.listkits.cannot_use", result.getMessage()));
                 return 0;
             }
             
             // Give the kit
-            var giveResult = kitManager.giveKit(player, kitName);
+            var giveResult = kitManager.giveKit(player, normalizedKitName);
             if (giveResult.isAllowed()) {
                 source.sendSuccess(() -> MessageUtil.success("commands.neoessentials.listkits.given", 
                     kit.getDisplayName()), false);
-                LOGGER.info("Player {} used kit '{}'", player.getName().getString(), kitName);
+                LOGGER.info("Player {} used kit '{}'", player.getName().getString(), normalizedKitName);
                 return 1;
             } else {
                 source.sendFailure(MessageUtil.error("commands.neoessentials.listkits.give_failed", 
