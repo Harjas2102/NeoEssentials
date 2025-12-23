@@ -254,6 +254,18 @@ public class NeoEssentials {
             } catch (Exception e) {
                 LOGGER.error("Failed to save permissions on shutdown", e);
             }
+
+            try {
+                com.zerog.neoessentials.chat.AfkManager.getInstance().shutdown();
+            } catch (Exception e) {
+                LOGGER.error("Failed to shutdown AFK manager", e);
+            }
+
+            try {
+                com.zerog.neoessentials.economy.managers.EconomyManager.getInstance().shutdown();
+            } catch (Exception e) {
+                LOGGER.error("Failed to shutdown Economy manager", e);
+            }
         }
         
         @SubscribeEvent
