@@ -184,6 +184,17 @@ public class NeoEssentials {
                 LOGGER.error("✗ CRITICAL: Permission system failed to initialize!", e);
                 ManagerRegistry.getInstance().markFailed("PermissionSystem", e.getMessage());
             }
+
+            // Initialize kit manager early so kits are loaded before commands are used
+            try {
+                LOGGER.info("⚙ Initializing Kit Manager...");
+                com.zerog.neoessentials.kits.KitManager.getInstance().initialize();
+                ManagerRegistry.getInstance().markInitialized("KitManager");
+                LOGGER.info("✓ Kit Manager initialized successfully");
+            } catch (Exception e) {
+                LOGGER.error("✗ Kit Manager failed to initialize!", e);
+                ManagerRegistry.getInstance().markFailed("KitManager", e.getMessage());
+            }
             
             // Display manager registry diagnostics
             try {
