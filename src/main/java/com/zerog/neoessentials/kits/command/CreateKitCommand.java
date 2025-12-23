@@ -85,6 +85,7 @@ public class CreateKitCommand {
                                 long cooldownMillis, String description) {
         CommandSourceStack source = context.getSource();
         String kitName = StringArgumentType.getString(context, "kitname");
+        String normalizedKitName = Kit.normalizeKitName(kitName);
         
         // Only players can create kits (need inventory)
         if (!(source.getEntity() instanceof ServerPlayer player)) {
@@ -140,35 +141,35 @@ public class CreateKitCommand {
             
             // Check if kit already exists
             KitManager kitManager = KitManager.getInstance();
-            Kit existingKit = kitManager.getKit(kitName);
+            Kit existingKit = kitManager.getKit(normalizedKitName);
             boolean isUpdate = existingKit != null;
             
             // Create/update the kit
-            String permission = "neoessentials.kits." + kitName.toLowerCase();
+            String permission = "neoessentials.kits." + normalizedKitName;
 
             boolean usePastebin = com.zerog.neoessentials.config.ConfigManager.isPastebinCreatekitEnabled();
             if (usePastebin) {
                 // Simulate Pastebin upload (replace with real API if needed)
-                String kitJson = kitToJsonString(kitName, displayName, description, items, cooldownMillis, permission);
+                String kitJson = kitToJsonString(normalizedKitName, displayName, description, items, cooldownMillis, permission);
                 String pastebinUrl = uploadToPastebin(kitJson);
                 if (pastebinUrl != null) {
                     source.sendSuccess(() -> MessageUtil.success("commands.neoessentials.createkit.pastebin_success", pastebinUrl), false);
-                    LOGGER.info("Kit '{}' exported to Pastebin by {}: {}", kitName, player.getName().getString(), pastebinUrl);
+                    LOGGER.info("Kit '{}' exported to Pastebin by {}: {}", normalizedKitName, player.getName().getString(), pastebinUrl);
                     return 1;
                 } else {
                     source.sendFailure(MessageUtil.error("commands.neoessentials.createkit.pastebin_failed"));
                     return 0;
                 }
             } else {
-                boolean success = kitManager.createKit(kitName, displayName, description, items, cooldownMillis, permission);
+                boolean success = kitManager.createKit(normalizedKitName, displayName, description, items, cooldownMillis, permission);
                 if (success) {
                     if (isUpdate) {
-                        source.sendSuccess(() -> MessageUtil.success("commands.neoessentials.createkit.updated", kitName, items.size(), formatCooldown(cooldownMillis)), false);
+                        source.sendSuccess(() -> MessageUtil.success("commands.neoessentials.createkit.updated", normalizedKitName, items.size(), formatCooldown(cooldownMillis)), false);
                     } else {
-                        source.sendSuccess(() -> MessageUtil.success("commands.neoessentials.createkit.created", kitName, items.size(), formatCooldown(cooldownMillis)), false);
+                        source.sendSuccess(() -> MessageUtil.success("commands.neoessentials.createkit.created", normalizedKitName, items.size(), formatCooldown(cooldownMillis)), false);
                     }
                     source.sendSuccess(() -> MessageUtil.info("commands.neoessentials.createkit.permission_hint", permission), false);
-                    LOGGER.info("Kit '{}' {} by {}", kitName, isUpdate ? "updated" : "created", player.getName().getString());
+                    LOGGER.info("Kit '{}' {} by {}", normalizedKitName, isUpdate ? "updated" : "created", player.getName().getString());
                     return 1;
                 } else {
                     source.sendFailure(MessageUtil.error("commands.neoessentials.createkit.failed"));
